@@ -19,14 +19,33 @@ class Parser {
     List<Stmt> parse() {
         List<Stmt> statements = new ArrayList<>();
         while (!isAtEnd()) {
-            statements.add(statement());
+            statements.add(declaration());
         }
 
         return statements;
     }
 
-    private Expr expression() {
-        return equality();
+    private Stmt declaration() {
+        try {
+            if (match(VAR)) return varDeclaration();
+
+            return statement();
+        } catch (ParseError error) {
+            synchronize();
+            return null;
+        }
+    }
+
+    private Stmt varDeclaration() {
+        Token name = consume(IDENTIFIER, "Expect variable name.");
+
+        Expr initializer = null;
+        if (match(EQUAL)) {
+            initializer = expression();
+        }
+
+        consume(SEMICOLON, "Expect ';' after variable declaration.");
+        return new Stmt.Var(name, initializer);
     }
 
     private Stmt statement() {
@@ -45,6 +64,28 @@ class Parser {
         Expr value = expression();
         consume(SEMICOLON, "Expect ';' after expression.");
         return new Stmt.Expression(value);
+    }
+
+    private Expr expression() {
+        return assignment();
+    }
+
+    private Expr assignment() {
+        Expr expr = equality();
+
+        if (match(EQUAL)) {
+            Token equals = previous();
+            Expr value = assignment();
+
+            if (expr instanceof Expr.Variable) {
+                Token name = ((Expr.Variable) expr).name;
+                return new Expr.Assign(name, value);
+            }
+
+            error(equals, "Invalid assignment target");
+        }
+
+        return expr;
     }
 
     private Expr equality() {
@@ -120,6 +161,10 @@ class Parser {
             return new Expr.Grouping(expr);
         }
 
+        if (match(IDENTIFIER)) {
+            return new Expr.Variable(previous());
+        }
+
         throw error(peek(), "Expect expression");
     }
 
@@ -156,10 +201,10 @@ class Parser {
         return tokens.get(current - 1);
     }
 
-    private void consume(TokenType type, String message) {
+    private Token consume(TokenType type, String message) {
         if (check(type)) {
             advance();
-            return;
+            return previous();
         }
 
         throw error(peek(), message);
