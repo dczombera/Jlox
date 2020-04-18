@@ -35,6 +35,8 @@ public class Lox {
         for (; ; ) {
             System.out.print("> ");
             run(reader.readLine());
+            hadError = false;
+            hadRuntimeError = false;
         }
     }
 
