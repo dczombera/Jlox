@@ -8,9 +8,15 @@ import java.util.Stack;
 public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private final Interpreter interpreter;
     private final Stack<Map<String, Boolean>> scopes = new Stack<>();
+    private FunctionType currentFunction = FunctionType.NONE;
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
+    }
+
+    private enum FunctionType {
+        NONE,
+        FUNCTION
     }
 
     @Override
@@ -32,7 +38,7 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         declare(stmt.name);
         define(stmt.name);
 
-        resolveFunction(stmt);
+        resolveFunction(stmt, FunctionType.FUNCTION);
         return null;
     }
 
@@ -52,6 +58,10 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitReturnStmt(Stmt.Return stmt) {
+        if (currentFunction == FunctionType.NONE) {
+            Lox.error(stmt.keyword, "Cannot return from top-level code.");
+        }
+
         if (stmt.value != null) resolve(stmt.value);
         return null;
     }
@@ -131,6 +141,12 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
+    public void resolve(List<Stmt> statements) {
+        for (Stmt statement : statements) {
+            resolve(statement);
+        }
+    }
+
     private void beginScope() {
         scopes.push(new HashMap<>());
     }
@@ -143,6 +159,11 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         if (scopes.isEmpty()) return;
 
         Map<String, Boolean> scope = scopes.peek();
+
+        if (scope.containsKey(name.lexeme)) {
+            Lox.error(name, "Variable with name " + name.lexeme + " already declared in this scope.");
+        }
+
         scope.put(name.lexeme, false);
     }
 
@@ -153,12 +174,6 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         scope.put(name.lexeme, true);
     }
 
-    private void resolve(List<Stmt> statements) {
-        for (Stmt statement : statements) {
-            resolve(statement);
-        }
-    }
-
     private void resolve(Stmt statement) {
         statement.accept(this);
     }
@@ -167,7 +182,10 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         expr.accept(this);
     }
 
-    private void resolveFunction(Stmt.Function stmt) {
+    private void resolveFunction(Stmt.Function stmt, FunctionType type) {
+        FunctionType enclosingFunction = currentFunction;
+        currentFunction = type;
+
         beginScope();
         for (Token param : stmt.params) {
             declare(param);
@@ -176,6 +194,8 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
         resolve(stmt.body);
         endScope();
+
+        currentFunction = enclosingFunction;
     }
 
     private void resolveLocal(Expr expr, Token name) {
@@ -187,3 +207,4 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         }
     }
 }
+
