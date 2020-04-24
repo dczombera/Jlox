@@ -28,6 +28,13 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        define(stmt.name);
+        declare(stmt.name);
+        return null;
+    }
+
+    @Override
     public Void visitExpressionStmt(Stmt.Expression stmt) {
         resolve(stmt.expression);
         return null;
@@ -105,6 +112,19 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             resolve(argument);
         }
 
+        return null;
+    }
+
+    @Override
+    public Void visitGetExpr(Expr.Get expr) {
+        resolve(expr.object);
+        return null;
+    }
+
+    @Override
+    public Void visitSetExpr(Expr.Set expr) {
+        resolve(expr.object);
+        resolve(expr.value);
         return null;
     }
 
